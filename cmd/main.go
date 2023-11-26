@@ -7,14 +7,12 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/mmcdole/gofeed"
 	"github.com/redis/go-redis/v9"
-	"github.com/robfig/cron"
 	"golang.org/x/net/html"
 )
 
@@ -31,39 +29,18 @@ var ctx = context.Background()
 var wg sync.WaitGroup
 
 func main() {
-	redisHost := os.Getenv("REDIS_HOST")
-	redisPort := os.Getenv("REDIS_PORT")
+	parser := gofeed.NewParser()
+	channels := GetAllChannels()
+	for k, _ := range channels {
+		value := channels[k]
+		feed, _ := parser.ParseURL(value)
 
-	if redisHost == "" {
-		redisHost = "64.110.89.251"
-	}
+		for _, item := range feed.Items {
+			html, _ := FetchHtml(item.Link)
+			thumb, _ := ExtractThumbnail(html)
 
-	if redisPort == "" {
-		redisPort = "6379"
-	}
-	rdb := GetRedisClient(redisHost+":"+redisPort, "", 0)
-	allChannels := GetAllChannels()
-
-	c := cron.New()
-	c.AddFunc("* 0, 12 * * *", func() {
-		for key := range allChannels {
-			clearItems(rdb, key)
+			fmt.Println(thumb)
 		}
-
-		// for key := range allChannels {
-		// 	clearGuidAndItems(rdb, key)
-		// }
-
-		start := time.Now()
-
-		InsertAllChannelItems(&wg, ctx, rdb, allChannels)
-		wg.Wait()
-
-		end := time.Now()
-		fmt.Println(end.Sub(start))
-	})
-	c.Start()
-	for {
 
 	}
 
